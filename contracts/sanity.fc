@@ -1,15 +1,18 @@
 #include "imports/stdlib.fc";
 const op::add = "op::add"c; 
+const op::accumulate = "op::accumulate"c;  ;; tracker op code
 
 ;; storage variables
 global int ctx_id; 
 global int ctx_result; ;; the result of the add operation
+global slice ctx_tracker_contract_addr;
 
 () load_data() impure { 
     var ds = get_data().begin_parse(); 
 
     ctx_id = ds~load_uint(32); 
     ctx_result = ds~load_uint(32); 
+    ctx_tracker_contract_addr = ds~load_msg_addr(); 
 
     ds.end_parse();
 }
@@ -19,6 +22,7 @@ global int ctx_result; ;; the result of the add operation
         begin_cell() 
             .store_uint(ctx_id, 32) 
             .store_uint(ctx_result, 32)
+            .store_slice(ctx_tracker_contract_addr)
             .end_cell() 
     );
 }
@@ -28,6 +32,11 @@ global int ctx_result; ;; the result of the add operation
     return a + b; 
 }
 
+;; Before passing control to recv_internal TVM puts the following elements on stack.
+;; my_balance -> Smart contract balance (in nanoTons)
+;; msg_value -> Incoming message balance (in nanoTons)
+;; in_msg_full -> Cell with an incoming message
+;; in_msg_body -> Incoming message body, slice type
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
         return ();
@@ -42,6 +51,11 @@ global int ctx_result; ;; the result of the add operation
         return ();
     }
 
+    ;; Every message has a strict layout, thus by parsing it, we can get the sender’s address
+    ;; first, we need to read some tech flags and then take the address using load_msg_addr (from stdlib)
+    slice sender_address = cs~load_msg_addr();
+    ;; ~dump(sender_address);  
+
     load_data(); ;; here we populate the storage variables
     ;; in this case, it could also be done in the single op::increase handler, but generally you would want
     ;; to populate storage variables as soon as all preliminary checks which do not need storage pass
@@ -54,9 +68,26 @@ global int ctx_result; ;; the result of the add operation
         int a = in_msg_body~load_uint(32); ;; read 'a' value
         int b = in_msg_body~load_uint(32); ;; read 'b' value
         ctx_result = sum(a,b);
-        ;; ~strdump("before save");  
         save_data(); ;; when we change storage variables, we need to store the changed variables, so we call save_data()
-        ;; ~strdump("after save");  
+
+        ;; if we want to send a message, we first need to construct it
+        ;; message serialization in most cases may be reduced to
+        var msg = begin_cell()
+            .store_uint(0x18, 6)                    ;; tech flags
+            .store_slice(ctx_tracker_contract_addr) ;; tracker contract address
+            .store_coins(0)                         ;; value 0
+            .store_uint(0, 107)                     ;; more tech flags :)
+            .store_uint(op::accumulate, 32)         ;; call accumulate action in tracker
+            .store_uint(0, 64)                      ;; query id 0
+            .store_int(ctx_result, 32)              ;; just put some payload here
+        .end_cell();
+
+        ;; to send messages, use send_raw_message from the standard library.
+        ;; it accepts two arguments message and mode
+        send_raw_message(msg, 64);
+        ;; mode parameter specifies how to process the funds passed into the smart contract with the message and the smart contract funds
+        ;; 64 means send everything from the incoming message — what’s left after the commission is deducted
+
         return (); ;; this message is handled so we return
     }
 
@@ -69,4 +100,9 @@ global int ctx_result; ;; the result of the add operation
 (int) get_result() method_id {
     load_data();
     return ctx_result; 
+}
+
+(slice) get_tracker_contract_addr() method_id {
+    load_data();
+    return ctx_tracker_contract_addr; 
 }

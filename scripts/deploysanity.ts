@@ -1,5 +1,5 @@
 import { toNano } from 'ton-core';
-import { Sanity } from '../wrappers/sanity';
+import { Sanity } from '../wrappers/Sanity';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
 
 export async function run(provider: NetworkProvider) {
