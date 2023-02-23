@@ -16,6 +16,17 @@ export function sanityConfigToCell(config: SanityConfig): Cell {
         .endCell();
 }
 
+export function decodeConfig(cell: Cell) {
+    let slice = cell.beginParse();
+
+    return {
+        owner: slice.loadAddress().toString(),
+        id: slice.loadUint(32),
+        result: slice.loadUint(32),
+        tracker_contract_addr: slice.loadAddress().toString()
+    }
+}
+
 export const Opcodes = {
     add: 0x9decfca4,
 };
@@ -76,5 +87,10 @@ export class Sanity implements Contract {
     async getTrackerContractAddress(provider: ContractProvider) {
         const result = await provider.get('get_tracker_contract_addr', []);
         return result.stack.readAddress();
+    }
+
+    async getConfig(provider: ContractProvider) {
+        const configCell = await (await provider.get('config', [])).stack.readCell();
+        return decodeConfig(configCell);
     }
 }

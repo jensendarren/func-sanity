@@ -109,3 +109,7 @@ slice get_tracker_contract_addr() method_id {
     load_data();
     return ctx_tracker_contract_addr; 
 }
+
+cell config() method_id {
+    return get_data();
+}

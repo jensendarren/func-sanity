@@ -1,6 +1,6 @@
 import { Blockchain, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
-import { Cell, toNano } from 'ton-core';
-import { Sanity } from '../wrappers/Sanity';
+import { Address, Cell, toNano } from 'ton-core';
+import { Sanity, SanityConfig } from '../wrappers/Sanity';
 import { SanityTracker } from '../wrappers/SanityTracker';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
@@ -58,6 +58,19 @@ describe('Sanity', () => {
     it('should set the owner address on deployment', async () => {
         const sanityOwnerAddress = await sanity.getOwner()
         expect(sanityOwnerAddress.toString()).toBe(owner.address.toString());
+    })
+
+    it('should be possible to get the data via the config message', async () => {
+        const decodedConfig = await sanity.getConfig()
+        
+        const expectedConfig = {
+            owner: owner.address.toString(),
+            id: 0,
+            result: 0,
+            tracker_contract_addr: sanityTracker.address.toString()
+        }
+    
+        expect(decodedConfig).toMatchObject(expectedConfig);
     })
 
     it('should prevent non owner sucessfully sending the sum message to the contract', async () => {
