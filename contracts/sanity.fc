@@ -4,6 +4,7 @@ const op::add = "op::add"c;
 const op::accumulate = "op::accumulate"c;  ;; tracker op code
 
 ;; storage variables
+global slice ctx_owner; 
 global int ctx_id; 
 global int ctx_result; ;; the result of the add operation
 global slice ctx_tracker_contract_addr;
@@ -11,6 +12,7 @@ global slice ctx_tracker_contract_addr;
 () load_data() impure { 
     var ds = get_data().begin_parse(); 
 
+    ctx_owner = ds~load_msg_addr();
     ctx_id = ds~load_uint(32); 
     ctx_result = ds~load_uint(32); 
     ctx_tracker_contract_addr = ds~load_msg_addr(); 
@@ -21,6 +23,7 @@ global slice ctx_tracker_contract_addr;
 () save_data() impure {
     set_data( 
         begin_cell() 
+            .store_slice(ctx_owner)
             .store_uint(ctx_id, 32) 
             .store_uint(ctx_result, 32)
             .store_slice(ctx_tracker_contract_addr)
@@ -90,12 +93,17 @@ global slice ctx_tracker_contract_addr;
     ;; provided of course that the sender has code to handle bounced messages
 }
 
-(int) get_result() method_id {
+slice owner() method_id {
+    load_data();
+    return ctx_owner;
+}
+
+int get_result() method_id {
     load_data();
     return ctx_result; 
 }
 
-(slice) get_tracker_contract_addr() method_id {
+slice get_tracker_contract_addr() method_id {
     load_data();
     return ctx_tracker_contract_addr; 
 }

@@ -1,13 +1,19 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from 'ton-core';
 
 export type SanityConfig = {
+    owner: Address,
     id: number,
     result: number,
     tracker_contract_addr: Address
 };
 
 export function sanityConfigToCell(config: SanityConfig): Cell {
-    return beginCell().storeUint(config.id, 32).storeUint(config.result, 32).storeAddress(config.tracker_contract_addr).endCell();
+    return beginCell()
+            .storeAddress(config.owner)
+            .storeUint(config.id, 32)
+            .storeUint(config.result, 32)
+            .storeAddress(config.tracker_contract_addr)
+        .endCell();
 }
 
 export const Opcodes = {
@@ -56,6 +62,11 @@ export class Sanity implements Contract {
                     .endCell(),
             });
         }
+
+    async getOwner(provider: ContractProvider) {
+        const result = await provider.get('owner', []);
+        return result.stack.readAddress();
+    }
 
     async getResult(provider: ContractProvider) {
         const result = await provider.get('get_result', []);

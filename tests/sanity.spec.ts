@@ -4,6 +4,7 @@ import { Sanity } from '../wrappers/Sanity';
 import { SanityTracker } from '../wrappers/SanityTracker';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
+import { randomAddress } from '@ton-community/test-utils';
 
 describe('Sanity', () => {
     let codeSanity: Cell;
@@ -11,11 +12,13 @@ describe('Sanity', () => {
     let blockchain: Blockchain;
     let sanity: OpenedContract<Sanity>;
     let sanityTracker: OpenedContract<SanityTracker>;
-
+    const ownerAddress = randomAddress();
+    
     beforeAll(async () => {
         codeSanity = await compile('Sanity');
         codeSanityTracker = await compile('SanityTracker');
         blockchain = await Blockchain.create();
+
 
         // uncomment to get really verbose debug messaging!
         // blockchain.verbosity = {
@@ -25,7 +28,11 @@ describe('Sanity', () => {
         // }
         
         sanityTracker = blockchain.openContract(SanityTracker.createFromConfig({id: 0, tracker: 0}, codeSanityTracker));
-        sanity = blockchain.openContract(Sanity.createFromConfig({id: 0, result: 0, tracker_contract_addr: sanityTracker.address}, codeSanity));
+        sanity = blockchain.openContract(Sanity.createFromConfig({  owner: ownerAddress, 
+                                                                    id: 0, 
+                                                                    result: 0, 
+                                                                    tracker_contract_addr: sanityTracker.address
+                                                                }, codeSanity));
 
         const deployer = await blockchain.treasury('deployer');
         const deploySanityResult = await sanity.sendDeploy(deployer.getSender(), toNano('0.05'));
@@ -47,6 +54,11 @@ describe('Sanity', () => {
     it('should set the tracker contract address on deployment', async () => {
         const sanityTrackerAddress = await sanity.getTrackerContractAddress();
         expect(sanityTrackerAddress.toString()).toBe(sanityTracker.address.toString());
+    })
+
+    it('should set the owner address on deployment', async () => {
+        const sanityOwnerAddress = await sanity.getOwner()
+        expect(sanityOwnerAddress.toString()).toBe(ownerAddress.toString());
     })
 
     it('should add two numbers', async () => {
