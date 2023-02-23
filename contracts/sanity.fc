@@ -57,34 +57,36 @@ global slice ctx_tracker_contract_addr;
 
     ;; Every message has a strict layout, thus by parsing it, we can get the sender’s address
     ;; first, we need to read some tech flags and then take the address using load_msg_addr (from stdlib)
-    slice sender_address = cs~load_msg_addr();
-    ;; ~dump(sender_address);  
+    slice sender_addr = cs~load_msg_addr();
 
     load_data(); ;; here we populate the storage variables
-    ;; in this case, it could also be done in the single op::increase handler, but generally you would want
-    ;; to populate storage variables as soon as all preliminary checks which do not need storage pass
 
-    int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
-    int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
-    ;; some contracts do not use query_id at all and do not have it in their messages, but for this one we will be reading it, but not using it
+    ;; check the caller (sender_addr) is the contract owner (ctx_owner) first
+    if (equal_slice_bits(sender_addr, ctx_owner)) {
+        ;; in this case, it could also be done in the single op::increase handler, but generally you would want
+        ;; to populate storage variables as soon as all preliminary checks which do not need storage pass
+        int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
+        int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
+        ;; some contracts do not use query_id at all and do not have it in their messages, but for this one we will be reading it, but not using it
 
 
-    if (op == op::add) { ;; handle op::increase
-        int a = in_msg_body~load_uint(32); ;; read 'a' value
-        int b = in_msg_body~load_uint(32); ;; read 'b' value
+        if (op == op::add) { ;; handle op::increase
+            int a = in_msg_body~load_uint(32); ;; read 'a' value
+            int b = in_msg_body~load_uint(32); ;; read 'b' value
 
-        ctx_result = sum(a,b);
+            ctx_result = sum(a,b);
 
-        save_data(); ;; when we change storage variables, we need to store the changed variables, so we call save_data()
+            save_data(); ;; when we change storage variables, we need to store the changed variables, so we call save_data()
 
-        msg::send_result(
-            ctx_tracker_contract_addr,
-            ctx_result,
-            op::accumulate,
-            msg::send_mode::carry_remaining_value
-        );
+            msg::send_result(
+                ctx_tracker_contract_addr,
+                ctx_result,
+                op::accumulate,
+                msg::send_mode::carry_remaining_value
+            );
 
-        return (); ;; this message is handled so we return
+            return (); ;; this message is handled so we return
+        }
     }
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw

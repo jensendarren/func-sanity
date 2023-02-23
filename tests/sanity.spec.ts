@@ -1,10 +1,9 @@
-import { Blockchain, OpenedContract } from '@ton-community/sandbox';
+import { Blockchain, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
 import { Cell, toNano } from 'ton-core';
 import { Sanity } from '../wrappers/Sanity';
 import { SanityTracker } from '../wrappers/SanityTracker';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
-import { randomAddress } from '@ton-community/test-utils';
 
 describe('Sanity', () => {
     let codeSanity: Cell;
@@ -12,13 +11,13 @@ describe('Sanity', () => {
     let blockchain: Blockchain;
     let sanity: OpenedContract<Sanity>;
     let sanityTracker: OpenedContract<SanityTracker>;
-    const ownerAddress = randomAddress();
+    let owner: OpenedContract<TreasuryContract>;
     
     beforeAll(async () => {
         codeSanity = await compile('Sanity');
         codeSanityTracker = await compile('SanityTracker');
         blockchain = await Blockchain.create();
-
+        owner = await blockchain.treasury('owner');
 
         // uncomment to get really verbose debug messaging!
         // blockchain.verbosity = {
@@ -28,7 +27,7 @@ describe('Sanity', () => {
         // }
         
         sanityTracker = blockchain.openContract(SanityTracker.createFromConfig({id: 0, tracker: 0}, codeSanityTracker));
-        sanity = blockchain.openContract(Sanity.createFromConfig({  owner: ownerAddress, 
+        sanity = blockchain.openContract(Sanity.createFromConfig({  owner: owner.address, 
                                                                     id: 0, 
                                                                     result: 0, 
                                                                     tracker_contract_addr: sanityTracker.address
@@ -58,7 +57,19 @@ describe('Sanity', () => {
 
     it('should set the owner address on deployment', async () => {
         const sanityOwnerAddress = await sanity.getOwner()
-        expect(sanityOwnerAddress.toString()).toBe(ownerAddress.toString());
+        expect(sanityOwnerAddress.toString()).toBe(owner.address.toString());
+    })
+
+    it('should prevent non owner sucessfully sending the sum message to the contract', async () => {
+        const stranger = await blockchain.treasury('stranger');
+        const receipt = await sanity.sendSum(stranger.getSender(), { a: 0, b: 0, value: toNano('0.05') });
+
+        // Check the message transaction from the stranger contract to fail
+        expect(receipt.transactions).toHaveTransaction({
+            from: stranger.address,
+            to: sanity.address,
+            success: false,
+        });
     })
 
     it('should add two numbers', async () => {
@@ -69,12 +80,11 @@ describe('Sanity', () => {
             
             const trackerValueBefore = await sanityTracker.getTracker();
 
-            const adder = await blockchain.treasury('adder ' + i);
-            const receipt = await sanity.sendSum(adder.getSender(), { a, b, value: toNano('0.05') });
+            const receipt = await sanity.sendSum(owner.getSender(), { a, b, value: toNano('0.05') });
             
             // Check there is a message from the external address to the contract
             expect(receipt.transactions).toHaveTransaction({
-                from: adder.address,
+                from: owner.address,
                 to: sanity.address,
                 success: true,
             });
