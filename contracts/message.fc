@@ -1,0 +1,29 @@
+const msg::send_mode::default = 0;
+const msg::send_mode::separate_gas = 1;
+const msg::send_mode::ignore_errors = 2;
+const msg::send_mode::carry_remaining_balance = 128;
+const msg::send_mode::carry_remaining_value = 64;
+const msg::send_mode::destroy_if_zero = 32;
+
+() msg::send_result(
+    slice to_addr,
+    int result,
+    int opcode,
+    int mode
+) impure {
+    ;; if we want to send a message, we first need to construct it
+    ;; message serialization in most cases may be reduced to
+    var msg = begin_cell()
+                .store_uint(0x10, 6)                    ;; tech flags
+                .store_slice(to_addr)                   ;; address to send message to
+                .store_coins(0)                         ;; value of coins to send
+                .store_uint(0, 107)                     ;; more tech flags :)
+                .store_uint(opcode, 32)                 ;; call accumulate action in tracker
+                .store_uint(0, 64)                      ;; query id 0
+                .store_int(result, 32)                  ;; result to send
+            .end_cell();
+
+    ;; to send messages, use send_raw_message from the standard library.
+    ;; it accepts two arguments message and mode
+    send_raw_message(msg, mode);
+}

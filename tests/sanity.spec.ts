@@ -20,7 +20,7 @@ describe('Sanity', () => {
         // uncomment to get really verbose debug messaging!
         // blockchain.verbosity = {
         //   blockchainLogs: true,
-        //   vmLogs: "vm_logs_full",
+        //   vmLogs: "vm_logs",
         //   debugLogs: true,
         // }
         
@@ -52,32 +52,35 @@ describe('Sanity', () => {
     it('should add two numbers', async () => {
         const increaseTimes = 3;
         for (let i = 0; i < increaseTimes; i++) {
-            // console.log(`increase ${i + 1}/${increaseTimes}`);
-
             const a = Math.floor(Math.random() * 100);
             const b = Math.floor(Math.random() * 100);
-
-            // console.log('a vaule: ', a);
-            // console.log('b value: ', b);
             
             const trackerValueBefore = await sanityTracker.getTracker();
-            // console.log('trackerValueBefore: ', trackerValueBefore);
 
             const adder = await blockchain.treasury('adder ' + i);
             const receipt = await sanity.sendSum(adder.getSender(), { a, b, value: toNano('0.05') });
             
+            // Check there is a message from the external address to the contract
             expect(receipt.transactions).toHaveTransaction({
                 from: adder.address,
                 to: sanity.address,
                 success: true,
             });
 
+            // Check there is a message sent between the two contracts
+            expect(receipt.transactions).toHaveTransaction({
+                from: sanity.address, 
+                to: sanityTracker.address,
+                success: true
+            })
+
+            // Check the sum in the sanity contract is correct
             const resultSum = await sanity.getResult();
             expect(resultSum).toBe(a+b);
             
+            // Check the accumulating sum in the sanity tracker contract is correct
             const trackerValueAfter = await sanityTracker.getTracker();
             expect(trackerValueAfter).toBe(trackerValueBefore + resultSum);
-            // console.log('trackerValueAfter: ', trackerValueAfter);
         }
     })
 });

@@ -1,4 +1,5 @@
 #include "imports/stdlib.fc";
+#include "message.fc";
 const op::add = "op::add"c; 
 const op::accumulate = "op::accumulate"c;  ;; tracker op code
 
@@ -64,29 +65,21 @@ global slice ctx_tracker_contract_addr;
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
     ;; some contracts do not use query_id at all and do not have it in their messages, but for this one we will be reading it, but not using it
 
+
     if (op == op::add) { ;; handle op::increase
         int a = in_msg_body~load_uint(32); ;; read 'a' value
         int b = in_msg_body~load_uint(32); ;; read 'b' value
+
         ctx_result = sum(a,b);
+
         save_data(); ;; when we change storage variables, we need to store the changed variables, so we call save_data()
 
-        ;; if we want to send a message, we first need to construct it
-        ;; message serialization in most cases may be reduced to
-        var msg = begin_cell()
-            .store_uint(0x18, 6)                    ;; tech flags
-            .store_slice(ctx_tracker_contract_addr) ;; tracker contract address
-            .store_coins(0)                         ;; value 0
-            .store_uint(0, 107)                     ;; more tech flags :)
-            .store_uint(op::accumulate, 32)         ;; call accumulate action in tracker
-            .store_uint(0, 64)                      ;; query id 0
-            .store_int(ctx_result, 32)              ;; just put some payload here
-        .end_cell();
-
-        ;; to send messages, use send_raw_message from the standard library.
-        ;; it accepts two arguments message and mode
-        send_raw_message(msg, 64);
-        ;; mode parameter specifies how to process the funds passed into the smart contract with the message and the smart contract funds
-        ;; 64 means send everything from the incoming message — what’s left after the commission is deducted
+        msg::send_result(
+            ctx_tracker_contract_addr,
+            ctx_result,
+            op::accumulate,
+            msg::send_mode::carry_remaining_value
+        );
 
         return (); ;; this message is handled so we return
     }
