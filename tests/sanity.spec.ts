@@ -1,9 +1,11 @@
 import { Blockchain, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
-import { Address, Cell, toNano } from 'ton-core';
-import { Sanity, SanityConfig } from '../wrappers/Sanity';
+import { Cell, toNano } from 'ton-core';
+import { sign } from 'ton-crypto';
+import { Sanity, sanityConfigToCell } from '../wrappers/Sanity';
 import { SanityTracker } from '../wrappers/SanityTracker';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
+import { randomAddress } from '@ton-community/test-utils';
 
 describe('Sanity', () => {
     let codeSanity: Cell;
@@ -117,5 +119,26 @@ describe('Sanity', () => {
             const trackerValueAfter = await sanityTracker.getTracker();
             expect(trackerValueAfter).toBe(trackerValueBefore + resultSum);
         }
+    })
+
+    it('should sign a message and check the signature via the contract', async () => {
+        const signer = await blockchain.treasury('signer');
+        
+        const cellData:Cell = sanityConfigToCell({
+            owner: randomAddress(),
+            id: 1,
+            result: 999,
+            tracker_contract_addr: randomAddress()
+        })
+        
+        // Sign message
+        const signature = sign(cellData.hash(), signer.keypair.secretKey);
+        
+        // should show valid == -1 meaning it iS valid
+        await sanity.sendCheckSignature(signer.getSender(), toNano('0.05'), cellData, cellData.hash(), signature, signer.keypair.publicKey);
+        
+        // should show valid == 0 meaning its NOT valid
+        const hacker = await blockchain.treasury('hacker');
+        await sanity.sendCheckSignature(signer.getSender(), toNano('0.05'), cellData, cellData.hash(), signature, hacker.keypair.publicKey);
     })
 });

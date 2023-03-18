@@ -29,6 +29,7 @@ export function decodeConfig(cell: Cell) {
 
 export const Opcodes = {
     add: 0x9decfca4,
+    check_signature: 0xe6ba6aa2 
 };
 
 export class Sanity implements Contract {
@@ -73,6 +74,29 @@ export class Sanity implements Contract {
                     .endCell(),
             });
         }
+
+    async sendCheckSignature(   provider: ContractProvider, 
+                                via: Sender, 
+                                value: bigint, 
+                                cellData: Cell,
+                                hash: Buffer,
+                                signature: Buffer,
+                                publicKey: Buffer
+                                ) {
+        ;
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATLY,
+            body:   beginCell()
+                        .storeUint(Opcodes.check_signature, 32)
+                        .storeUint(0, 64) //queryid
+                        .storeRef(cellData)
+                        .storeBuffer(hash)
+                        .storeRef(beginCell().storeBuffer(signature).endCell())
+                        .storeBuffer(publicKey)
+                    .endCell(),
+        });
+    }
 
     async getOwner(provider: ContractProvider) {
         const result = await provider.get('owner', []);

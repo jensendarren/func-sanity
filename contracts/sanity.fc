@@ -2,6 +2,7 @@
 #include "message.fc";
 const op::add = "op::add"c; 
 const op::accumulate = "op::accumulate"c;  ;; tracker op code
+const op::check_signature = "op::check_signature"c;
 
 ;; storage variables
 global slice ctx_owner; 
@@ -61,14 +62,14 @@ global slice ctx_tracker_contract_addr;
 
     load_data(); ;; here we populate the storage variables
 
+    int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
+    int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
+
     ;; check the caller (sender_addr) is the contract owner (ctx_owner) first
     if (equal_slice_bits(sender_addr, ctx_owner)) {
         ;; in this case, it could also be done in the single op::increase handler, but generally you would want
         ;; to populate storage variables as soon as all preliminary checks which do not need storage pass
-        int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
-        int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
         ;; some contracts do not use query_id at all and do not have it in their messages, but for this one we will be reading it, but not using it
-
 
         if (op == op::add) { ;; handle op::increase
             int a = in_msg_body~load_uint(32); ;; read 'a' value
@@ -87,6 +88,33 @@ global slice ctx_tracker_contract_addr;
 
             return (); ;; this message is handled so we return
         }
+
+    }
+
+    if(op == op::check_signature) {
+        ~strdump("*** IN check_signature");
+        slice data = in_msg_body~load_ref().begin_parse(); ;; first ref contains actual message that was signed
+        int hash = in_msg_body~load_uint(256);
+        slice signature = in_msg_body~load_ref().begin_parse();
+        int public_key = in_msg_body~load_uint(256);
+        
+        ;; ~dump(hash);
+        ;; ~dump(signature);
+        ;; ~dump(public_key);
+
+        ;; call check_signature (-1 is valid / 0 is NOT valid)
+        int valid = check_signature(hash, signature, public_key);
+
+        ~dump(valid);
+
+        slice owner_addr = data~load_msg_addr();
+        int id = data~load_uint(32);
+        int result = data~load_uint(32);
+        slice tracker_contract_addr = data~load_msg_addr();
+
+        ;; ~dump(result);
+        ;; check the message was sgined by the owner 
+        ;; then check the message was signed by a specific account 
     }
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
